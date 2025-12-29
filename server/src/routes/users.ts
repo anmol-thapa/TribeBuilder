@@ -188,13 +188,13 @@ router.get('/me', authenticateToken, async (req: Request, res: Response): Promis
       },
       artist: userData.artist_id
         ? {
-            id: userData.artist_id,
-            artist_name: userData.artist_name,
-            real_name: userData.real_name,
-            bio: userData.bio,
-            genre: userData.genre,
-            location: userData.location,
-          }
+          id: userData.artist_id,
+          artist_name: userData.artist_name,
+          real_name: userData.real_name,
+          bio: userData.bio,
+          genre: userData.genre,
+          location: userData.location,
+        }
         : null,
     });
   } catch (error) {
@@ -238,13 +238,13 @@ router.get('/profile', authenticateToken, async (req: Request, res: Response): P
       },
       artist: userData.artist_id
         ? {
-            id: userData.artist_id,
-            artist_name: userData.artist_name,
-            real_name: userData.real_name,
-            bio: userData.bio,
-            genre: userData.genre,
-            location: userData.location,
-          }
+          id: userData.artist_id,
+          artist_name: userData.artist_name,
+          real_name: userData.real_name,
+          bio: userData.bio,
+          genre: userData.genre,
+          location: userData.location,
+        }
         : null,
     });
   } catch (error) {

@@ -8,6 +8,8 @@ A comprehensive full-stack application with React frontend and Express.js backen
 TribeBuilders/
 ├── client/          # React frontend (Vite + TypeScript)
 ├── server/          # Express.js backend (TypeScript)
+├── guides/          # Markdown files contaning development guides
+├── tests/           # Tests
 ├── package.json     # Root package configuration
 └── README.md        # This file
 ```
@@ -20,9 +22,9 @@ TribeBuilders/
 
 ### Installation
 
-1. Install all dependencies:
+1. Install all dependencies (Ensure you do this seperately in both the client and server folder):
 ```bash
-npm run install:all
+npm install
 ```
 
 ### Development
