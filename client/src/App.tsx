@@ -8,6 +8,8 @@ import { RealtimeProvider } from "./contexts/RealtimeContext";
 import Navigation from "./components/Navigation";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
+import SocialDashboard from "./pages/SocialDashboard";
+import InstagramCallback from "./pages/InstagramCallback";
 import PersonaForm from "./pages/PersonaForm";
 import MediaUpload from "./pages/MediaUpload";
 import ImageEditor from "./pages/ImageEditor";
@@ -29,9 +31,11 @@ const App = () => (
             <div className="min-h-screen bg-background">
               <Navigation />
               <Routes>
+                <Route path="/social" element={<SocialDashboard />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/persona" element={<ProtectedRoute><PersonaForm /></ProtectedRoute>} />
+          <Route path="/persona" element={<ProtectedRoute><PersonaForm /></ProtectedRoute>} />
+          <Route path="/instagram/callback" element={<InstagramCallback />} />
                 <Route path="/media" element={<ProtectedRoute><MediaUpload /></ProtectedRoute>} />
                 <Route path="/content-generator" element={<ProtectedRoute><ContentGenerator /></ProtectedRoute>} />
                 <Route path="/image-editor" element={<ProtectedRoute><ImageEditor /></ProtectedRoute>} />

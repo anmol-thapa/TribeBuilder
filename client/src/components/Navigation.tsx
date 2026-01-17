@@ -27,6 +27,10 @@ const Navigation = () => {
     label: 'Media',
     icon: Upload
   }, {
+    path: '/social',
+    label: 'Social',
+    icon: Sparkles
+  }, {
     path: '/image-editor',
     label: 'Image Editor',
     icon: Image

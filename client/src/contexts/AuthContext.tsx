@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient, User, LoginResponse } from '@/lib/api';
 import { useArtistStore } from '@/stores/artistStore';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -76,6 +77,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response: LoginResponse = await apiClient.login(email, password);
       setUser(response.user);
 
+      // Also log into Supabase for social features (create if missing)
+      try {
+        const { error: supaError } = await supabase.auth.signInWithPassword({ email, password });
+        if (supaError) {
+          // If user not found, try to sign up and then sign in again
+          const { error: signupError } = await supabase.auth.signUp({ email, password });
+          if (signupError && !signupError.message?.toLowerCase().includes('existing')) {
+            console.warn('Supabase signup failed (social features may be unavailable):', signupError.message);
+          } else {
+            const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
+            if (retryError) {
+              console.warn('Supabase login retry failed (social features may be unavailable):', retryError.message);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase login exception (social features may be unavailable):', err);
+      }
+
       // Fetch artist profile after login
       try {
         const userData = await apiClient.getCurrentUser();
@@ -107,8 +127,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (email: string, password: string) => {
     try {
+      // Create Supabase user first (ignore if already exists)
+      try {
+        await supabase.auth.signUp({ email, password });
+      } catch (err) {
+        console.warn('Supabase signup exception (may already exist):', err);
+      }
+
       await apiClient.register({ email, password });
-      // After registration, automatically log in
+      // After registration, automatically log in (will also sign into Supabase)
       await login(email, password);
     } catch (error) {
       console.error('Registration error:', error);
@@ -118,6 +145,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = () => {
     apiClient.logout();
+    supabase.auth.signOut().catch(err => console.warn('Supabase signOut failed', err));
     setUser(null);
 
     // Clear artist data from Zustand (and localStorage via persist)

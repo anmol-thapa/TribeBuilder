@@ -2,8 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://bdvcsywmqtlsrojolhlq.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkdmNzeXdtcXRsc3Jvam9saGxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNzU3NTcsImV4cCI6MjA3Mjg1MTc1N30.hmcrXIf_p725EHnHWpATGiPu9CXV9lkp3gaXy5FN5aE";
+// NOTE: Keep this aligned with tribebuilder-hub (social OAuth functions live there)
+const SUPABASE_URL = "https://dmnskdovvnkrylwtqdmd.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbnNrZG92dm5rcnlsd3RxZG1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxNDM0MzAsImV4cCI6MjA3MzcxOTQzMH0.IXxohyWhhugunX4DBwl6UxR9UtBUtrtnEoxpuI2GrGc";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

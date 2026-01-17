@@ -30,7 +30,7 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
     // Check Supabase connection
     const checkConnection = async () => {
       try {
-        const { error } = await supabase.from('users').select('count').limit(1);
+        const { error } = await supabase.from('users' as any).select('count').limit(1);
         if (!error) {
           setIsConnected(true);
         }
