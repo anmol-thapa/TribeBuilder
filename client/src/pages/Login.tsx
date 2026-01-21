@@ -100,9 +100,6 @@ const Login = () => {
             <Music className="h-10 w-10 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-bold mb-2">TribeBuilders</h1>
-          <p className="text-muted-foreground">
-            UMG Artist Social Media Assistant
-          </p>
         </div>
 
         <Card className="bg-gradient-card shadow-creative border-border/50">
