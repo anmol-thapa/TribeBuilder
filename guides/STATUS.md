@@ -188,7 +188,7 @@ CORS_ORIGIN=http://localhost:8084
 **Frontend (.env in client/):**
 ```env
 VITE_API_URL=http://localhost:3000/api
-VITE_SUPABASE_URL=https://bdvcsywmqtlsrojolhlq.supabase.co
+VITE_SUPABASE_URL=https://itztzjoldjttugdnhajd.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 ```
 

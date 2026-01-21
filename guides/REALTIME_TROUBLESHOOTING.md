@@ -254,7 +254,7 @@ server/scripts/enable-realtime.sql          - Enable script
 ### Environment Variables:
 ```bash
 # Frontend (.env in client/)
-VITE_SUPABASE_URL=https://bdvcsywmqtlsrojolhlq.supabase.co
+VITE_SUPABASE_URL=https://itztzjoldjttugdnhajd.supabase.co
 VITE_SUPABASE_ANON_KEY=<your-key>
 ```
 
@@ -284,7 +284,7 @@ Verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set.
 ### 3. Check Network
 ```bash
 # Test Supabase connection
-curl https://bdvcsywmqtlsrojolhlq.supabase.co/rest/v1/
+curl https://itztzjoldjttugdnhajd.supabase.co/rest/v1/
 ```
 
 Should return 200 OK or 401 (both are fine).

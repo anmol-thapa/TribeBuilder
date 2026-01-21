@@ -34,6 +34,9 @@ interface SocialAccountCardProps {
   color: string;
   connectionId?: string;
   onSync?: () => void;
+  activeConnectPlatform: string | null;
+  onConnectStart: () => void;
+  onConnectEnd: () => void;
 }
 
 const platformIcons = {
@@ -54,6 +57,9 @@ export const SocialAccountCard = ({
   color,
   connectionId,
   onSync,
+  activeConnectPlatform,
+  onConnectStart,
+  onConnectEnd,
 }: SocialAccountCardProps) => {
   const Icon = platformIcons[platform as keyof typeof platformIcons];
   const { toast } = useToast();
@@ -85,56 +91,64 @@ export const SocialAccountCard = ({
     }
   };
 
+  
   const handleConnect = async () => {
-    // X/Twitter - use OAuth to connect user's own account
-    if (platform === "Twitter") {
-      console.log("Initiating X/Twitter OAuth...");
+    const anotherInProgress =
+      activeConnectPlatform !== null && activeConnectPlatform !== platform;
+    if (anotherInProgress) {
+      toast({
+        title: "Please wait",
+        description: "Another connection is already in progress.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      // Show important message about connecting their own account
+    onConnectStart();
+
+    // X/Twitter (redirect flow)
+    if (platform === "Twitter") {
       toast({
         title: "Connecting Your X Account",
-        description: "You'll be redirected to X. Make sure to log in with YOUR X account, not someone else's!",
+        description: "You'll be redirected to X. Make sure to log in with YOUR X account.",
         duration: 5000,
       });
-
       await connectX();
       return;
     }
 
-    // YouTube - open OAuth flow (Google OAuth)
+    // YouTube (redirect flow)
     if (platform === "YouTube") {
-      const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
-      if (!googleClientId || googleClientId === 'YOUR_GOOGLE_CLIENT_ID') {
+      const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "VITE_GOOGLE_CLIENT_ID";
+      if (!googleClientId || googleClientId === "VITE_GOOGLE_CLIENT_ID") {
         toast({
           title: "YouTube not configured",
           description: "Set VITE_GOOGLE_CLIENT_ID to enable YouTube OAuth.",
           variant: "destructive",
         });
+        onConnectEnd();
         return;
       }
-
-      toast({
-        title: "Connecting YouTube",
-        description: "You'll be redirected to Google to authorize YouTube access.",
-        duration: 3000,
-      });
-
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
       if (!supabaseUrl) {
         toast({
           title: "Missing Supabase URL",
           description: "Set VITE_SUPABASE_URL to your Supabase project to enable YouTube OAuth.",
           variant: "destructive",
         });
+        onConnectEnd();
         return;
       }
-
-      const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${supabaseUrl}/functions/v1/social-auth&response_type=code&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/youtube.upload&access_type=offline&state=youtube&prompt=consent`;
-      window.location.href = redirectUrl;
+      toast({
+        title: "Connecting YouTube",
+        description: "You'll be redirected to Google to authorize YouTube access.",
+        duration: 3000,
+      });
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${supabaseUrl}/functions/v1/social-auth&response_type=code&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/youtube.upload&access_type=offline&state=youtube&prompt=consent`;
       return;
     }
 
-    // Facebook - use test connection with user token
+    // Facebook
     if (platform === "Facebook") {
       if (!import.meta.env.VITE_FACEBOOK_APP_ID) {
         toast({
@@ -142,14 +156,15 @@ export const SocialAccountCard = ({
           description: "Set VITE_FACEBOOK_APP_ID to enable Facebook OAuth.",
           variant: "destructive",
         });
+        onConnectEnd();
         return;
       }
       await connectFacebook();
+      onConnectEnd();
       return;
     }
 
-    // Instagram - use OAuth connection with dedicated callback
-    // Instagram - currently not wired; show message
+    // Instagram
     if (platform === "Instagram") {
       toast({
         title: "Instagram not configured",
@@ -157,10 +172,11 @@ export const SocialAccountCard = ({
         variant: "destructive",
         duration: 4000,
       });
+      onConnectEnd();
       return;
     }
 
-    // Reddit - use OAuth connection
+    // Reddit (redirect flow)
     if (platform === "Reddit") {
       if (!import.meta.env.VITE_REDDIT_CLIENT_ID) {
         toast({
@@ -168,13 +184,14 @@ export const SocialAccountCard = ({
           description: "Set VITE_REDDIT_CLIENT_ID to enable Reddit OAuth.",
           variant: "destructive",
         });
+        onConnectEnd();
         return;
       }
       await connectReddit();
       return;
     }
 
-    // TikTok - use OAuth connection
+    // TikTok (redirect flow)
     if (platform === "TikTok") {
       if (!import.meta.env.VITE_TIKTOK_CLIENT_KEY) {
         toast({
@@ -182,6 +199,7 @@ export const SocialAccountCard = ({
           description: "Set VITE_TIKTOK_CLIENT_KEY to enable TikTok OAuth.",
           variant: "destructive",
         });
+        onConnectEnd();
         return;
       }
       toast({
@@ -193,13 +211,14 @@ export const SocialAccountCard = ({
       return;
     }
 
-    // For other platforms, show coming soon message
     toast({
       title: `${platform} Connection`,
       description: `${platform} OAuth integration is coming soon! Configure your API keys in Supabase Edge Functions.`,
       variant: "default",
     });
+    onConnectEnd();
   };
+
 
   const handleDisconnect = async () => {
     if (!connectionId && platform !== "Twitter") return;
@@ -263,10 +282,17 @@ export const SocialAccountCard = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div
-              className={`p-2 rounded-lg ${connected ? (color === "instagram" ? "gradient-instagram" : `bg-social-${color}`) : "bg-muted"
+              className={`p-2 rounded-lg ${connected
+                  ? color === "instagram"
+                    ? "gradient-instagram"
+                    : "bg-social-" + color
+                  : "bg-[rgb(143,115,86)]/10 border border-[rgb(143,115,86)]/40"
                 }`}
             >
-              <Icon className="h-5 w-5 text-white" />
+              <Icon
+                className="h-5 w-5"
+                style={{ color: connected ? "#ffffff" : "rgb(143, 115, 86)" }}
+              />
             </div>
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -341,11 +367,11 @@ export const SocialAccountCard = ({
             <p className="text-muted-foreground">Connect your {platform} account to post and track analytics</p>
             <Button
               onClick={handleConnect}
-              disabled={isConnecting || isFbConnecting || isRedditConnecting || isTikTokConnecting}
+              disabled={!!activeConnectPlatform && activeConnectPlatform !== platform}
               className="w-full text-white bg-[rgb(143,115,86)] hover:bg-[rgb(123,95,70)]"
             >
               <Plus className="h-4 w-4 mr-2" />
-              {(isConnecting || isFbConnecting || isRedditConnecting || isTikTokConnecting) ? "Connecting..." : `Connect Your ${platform}`}
+              {activeConnectPlatform === platform ? "Connecting..." : `Connect Your ${platform}`}
             </Button>
           </div>
         )}

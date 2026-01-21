@@ -18,7 +18,7 @@ export const useRedditConnection = () => {
       }
 
       // Use the edge function callback URL
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bdvcsywmqtlsrojolhlq.supabase.co';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://itztzjoldjttugdnhajd.supabase.co';
       const redirectUri = `${supabaseUrl}/functions/v1/reddit-oauth-callback`;
 
       // Reddit OAuth URL with user ID in state

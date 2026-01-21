@@ -64,15 +64,15 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <div className="relative h-64 bg-gradient-hero overflow-hidden">
-        <img 
-          src={heroImage} 
-          alt="Musician artist workspace with instruments and studio equipment" 
+        <img
+          src={heroImage}
+          alt="Musician artist workspace with instruments and studio equipment"
           className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-30"
         />
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="text-center text-primary-foreground">
             <h1 className="text-4xl font-bold mb-4 drop-shadow-lg">
-              Welcome to Music Dashboard
+              Welcome to TribeBuilder
             </h1>
             <p className="text-xl opacity-90 max-w-2xl mx-auto px-4">
               Your musical journey starts here. Manage your artist profile and showcase your music.

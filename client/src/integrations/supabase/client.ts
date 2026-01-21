@@ -3,13 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // NOTE: Keep this aligned with tribebuilder-hub (social OAuth functions live there)
-const SUPABASE_URL = "https://dmnskdovvnkrylwtqdmd.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbnNrZG92dm5rcnlsd3RxZG1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxNDM0MzAsImV4cCI6MjA3MzcxOTQzMH0.IXxohyWhhugunX4DBwl6UxR9UtBUtrtnEoxpuI2GrGc";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_KEY =
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) ||
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string);
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.warn("Supabase URL/key missing. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+}
+
+
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,

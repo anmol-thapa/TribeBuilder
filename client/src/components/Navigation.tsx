@@ -45,8 +45,8 @@ const Navigation = () => {
     navigate('/login');
   };
 
-  // Don't show navigation on login page
-  if (location.pathname === '/login') {
+  // Don't show navigation on login or oauth completion pages
+  if (location.pathname === '/login' || location.pathname.startsWith('/oauth/complete')) {
     return null;
   }
 
@@ -69,10 +69,10 @@ const Navigation = () => {
                 key={path}
                 to={path}
                 className={cn(
-                  "flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300",
-                  "hover:bg-primary/10 hover:shadow-card hover:scale-105",
+                  "flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-all duration-200 text-sm",
+                  "hover:bg-primary/10 hover:shadow-sm",
                   location.pathname === path
-                    ? "bg-primary text-primary-foreground shadow-creative"
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >

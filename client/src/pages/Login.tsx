@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -30,7 +30,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 const Login = () => {
-  const { login, register } = useAuth();
+  const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
@@ -55,6 +55,13 @@ const Login = () => {
     },
   });
 
+  // If already logged in, send to homepage
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
   const onLogin = async (values: LoginFormData) => {
     setIsLoading(true);
     try {
@@ -76,10 +83,6 @@ const Login = () => {
     setIsLoading(true);
     try {
       await register(values.email, values.password);
-      toast.success('Registration successful!', {
-        description: 'Your account has been created. Welcome to TribeBuilders!',
-      });
-      navigate(from, { replace: true });
     } catch (error: any) {
       toast.error('Registration failed', {
         description: error.message || 'Please try again.',

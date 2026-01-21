@@ -24,9 +24,13 @@
     "lint:server": "cd server && npm run lint"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "supabase": "^2.72.8"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.91.0"
   }
 }
