@@ -12,9 +12,7 @@ import {
   MessageSquare,
   Share2,
   Instagram,
-  Twitter,
   Facebook,
-  Linkedin,
   Youtube,
   Plus,
   BarChart3,
@@ -39,12 +37,32 @@ const Dashboard = () => {
   const [selectedTimeframe, setSelectedTimeframe] = useState("7d");
   const [selectedTab, setSelectedTab] = useState("overview");
   const [activeConnectPlatform, setActiveConnectPlatform] = useState<string | null>(null);
+  const [activeSyncPlatform, setActiveSyncPlatform] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAuthenticated, logout, user } = useAuth();
 
   // Social data (from Supabase functions; requires Supabase auth)
-  const { connections, analytics, loading, error, syncAnalytics } = useSocialData();
+  const { connections, analytics, loading, error, syncAnalytics, refetch, setAnalyticsDays } = useSocialData();
+
+  const formatRateLimitDetail = (err: any) => {
+    const rateLimit = err?.rateLimit;
+    if (!rateLimit) return null;
+    const reset = rateLimit.reset ? new Date(Number(rateLimit.reset) * 1000) : null;
+    const resetLabel = reset ? reset.toLocaleTimeString() : "unknown";
+    return `Rate limit: ${rateLimit.remaining ?? "?"}/${rateLimit.limit ?? "?"}, resets at ${resetLabel}`;
+  };
+
+  const handleTimeframeChange = (value: string) => {
+    setSelectedTimeframe(value);
+    const daysMap: Record<string, number> = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "1y": 365,
+    };
+    setAnalyticsDays(daysMap[value] ?? 30);
+  };
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -58,6 +76,20 @@ const Dashboard = () => {
     const handleMessage = (event: MessageEvent) => {
       if (typeof event.data?.type === "string" && event.data.type.includes("-auth-")) {
         setActiveConnectPlatform(null);
+        if (event.data.type.includes("success")) {
+          const platform = event.data.platform || event.data.type.split("-auth-")[0];
+          refetch();
+          if (platform) {
+            syncAnalytics(platform).catch((err: any) => {
+              const rateDetail = formatRateLimitDetail(err);
+              toast({
+                title: "Sync failed",
+                description: rateDetail ? `${err?.message || "Sync failed."} (${rateDetail})` : (err?.message || "Sync failed."),
+                variant: "destructive",
+              });
+            });
+          }
+        }
       }
     };
     window.addEventListener("message", handleMessage);
@@ -68,14 +100,19 @@ const Dashboard = () => {
   console.log('[Dashboard] Current user:', user?.id, user?.email);
   console.log('[Dashboard] Connections loaded:', connections.length, connections);
 
-  const allPlatforms = ["Instagram", "Twitter", "Facebook", "LinkedIn", "YouTube", "Reddit", "TikTok"];
-  const socialAccounts = allPlatforms.map(platform => {
-    const connection = connections.find(c =>
-      c.platform.toLowerCase() === platform.toLowerCase()
-    );
+  const platformOrder = [
+    { key: "twitter", label: "X" },
+    { key: "youtube", label: "YouTube" },
+    { key: "reddit", label: "Reddit" },
+    { key: "instagram", label: "Instagram" },
+    { key: "facebook", label: "Facebook" },
+    { key: "tiktok", label: "TikTok" },
+  ];
+  const socialAccounts = platformOrder.map(({ key, label }) => {
+    const connection = connections.find(c => c.platform.toLowerCase() === key);
 
     if (connection) {
-      console.log(`[Dashboard] ${platform} connection found:`, {
+      console.log(`[Dashboard] ${label} connection found:`, {
         connectionUserId: connection.user_id,
         currentUserId: user?.id,
         match: connection.user_id === user?.id,
@@ -84,12 +121,23 @@ const Dashboard = () => {
     }
 
     return {
-      platform,
-      username: connection?.username || "",
-      followers: connection?.followers_count || 0,
+        platform: label,
+        platformKey: key,
+        username: connection?.username || "",
+        followers: connection?.followers_count || 0,
+        engagement: connection
+        ? (analytics[connection.id] || []).reduce(
+            (sum, item) => sum + item.likes + item.comments + item.shares + item.reach,
+            0
+          )
+        : 0,
+      reach: connection
+        ? (analytics[connection.id] || []).reduce((sum, item) => sum + item.reach, 0)
+        : 0,
       connected: !!connection,
-      color: platform.toLowerCase(),
+      color: key,
       connectionId: connection?.id,
+      profileData: connection?.profile_data ?? null,
     };
   });
 
@@ -97,21 +145,94 @@ const Dashboard = () => {
   const connectedAccounts = socialAccounts.filter(account => account.connected);
   const hasConnectedAccounts = connectedAccounts.length > 0;
 
-  const metrics = hasConnectedAccounts ? {
-    totalFollowers: connectedAccounts.reduce((sum, account) => sum + account.followers, 0),
-    followersGrowth: 12, // Calculate from analytics data
-    totalEngagement: Object.values(analytics).flat()
-      .reduce((sum, data) => sum + data.likes + data.comments + data.shares, 0),
-    engagementGrowth: 8,
-    scheduledPosts: 0, // TODO: Get from your scheduling system
-    postsGrowth: 0,
-    avgReach: Math.round(
-      Object.values(analytics).flat()
-        .reduce((sum, data) => sum + data.reach, 0) /
-      (Object.values(analytics).flat().length || 1)
-    ),
-    reachGrowth: 15
-  } : null;
+  const analyticsPoints = Object.values(analytics)
+    .flat()
+    .map((item) => ({
+      ...item,
+      dateObj: new Date(`${item.date}T00:00:00`),
+      engagement: item.likes + item.comments + item.shares + item.reach,
+    }))
+    .filter((item) => !Number.isNaN(item.dateObj.getTime()))
+    .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+  const percentChange = (current: number, previous: number) => {
+    if (previous <= 0) return 0;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  const sumRange = (start: Date, end: Date, key: keyof typeof analyticsPoints[number]) =>
+    analyticsPoints.reduce((sum, item) => {
+      if (item.dateObj >= start && item.dateObj < end) {
+        const value = item[key];
+        return sum + (typeof value === "number" ? value : 0);
+      }
+      return sum;
+    }, 0);
+
+  const now = new Date();
+  const startCurrent = new Date(now);
+  startCurrent.setDate(now.getDate() - 6);
+  const startPrevious = new Date(now);
+  startPrevious.setDate(now.getDate() - 13);
+
+  const currentEngagement = sumRange(startCurrent, now, "engagement");
+  const previousEngagement = sumRange(startPrevious, startCurrent, "engagement");
+  const currentReach = sumRange(startCurrent, now, "reach");
+  const previousReach = sumRange(startPrevious, startCurrent, "reach");
+  const currentReachAvg = analyticsPoints.length
+    ? Math.round(
+        analyticsPoints
+          .filter((item) => item.dateObj >= startCurrent)
+          .reduce((sum, item) => sum + item.reach, 0) /
+          Math.max(
+            analyticsPoints.filter((item) => item.dateObj >= startCurrent).length,
+            1
+          )
+      )
+    : 0;
+
+  const latestDate = analyticsPoints[analyticsPoints.length - 1]?.dateObj;
+  const latestDateStr = latestDate ? latestDate.toISOString().split("T")[0] : null;
+  const latestFollowers = latestDateStr
+    ? analyticsPoints
+        .filter((item) => item.date === latestDateStr)
+        .slice()
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .pop()?.followers_count
+    : undefined;
+  const previousDateStr = latestDateStr
+    ? analyticsPoints
+        .filter((item) => item.date < latestDateStr)
+        .map((item) => item.date)
+        .sort()
+        .pop() ?? null
+    : null;
+  const previousFollowers = previousDateStr
+    ? analyticsPoints
+        .filter((item) => item.date === previousDateStr)
+        .slice()
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .pop()?.followers_count
+    : undefined;
+
+  const metrics = hasConnectedAccounts
+    ? {
+        totalFollowers: connectedAccounts.reduce(
+          (sum, account) => sum + (account.platform === "Reddit" ? 0 : account.followers),
+          0
+        ),
+        followersGrowth:
+          typeof latestFollowers === "number" && typeof previousFollowers === "number"
+            ? percentChange(latestFollowers, previousFollowers)
+            : 0,
+        totalEngagement: currentEngagement,
+        engagementGrowth: percentChange(currentEngagement, previousEngagement),
+        scheduledPosts: 0, // TODO: Get from your scheduling system
+        postsGrowth: 0,
+        avgReach: currentReachAvg,
+        reachGrowth: percentChange(currentReach, previousReach),
+      }
+    : null;
 
   const hasAnalyticsData = Object.keys(analytics).length > 0;
 
@@ -225,13 +346,13 @@ const Dashboard = () => {
               <TabsContent value="overview" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 space-y-6">
-                    <AnalyticsChart
-                      timeframe={selectedTimeframe}
-                      onTimeframeChange={setSelectedTimeframe}
-                      connectedAccounts={connectedAccounts}
-                      hasData={hasAnalyticsData}
-                      analytics={analytics}
-                    />
+                <AnalyticsChart
+                  timeframe={selectedTimeframe}
+                  onTimeframeChange={handleTimeframeChange}
+                  connectedAccounts={connectedAccounts}
+                  hasData={hasAnalyticsData}
+                  analytics={analytics}
+                />
                     <PostAnalytics />
                   </div>
                   <div className="space-y-4">
@@ -285,15 +406,66 @@ const Dashboard = () => {
               </TabsContent>
 
               <TabsContent value="accounts" className="space-y-6">
-                <Card className="glass border-border/20 mb-6">
-                  <CardContent className="p-6">
-                    <h3 className="text-lg font-semibold mb-2">Connect Your Social Accounts</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Connect your own social media accounts to post content and track analytics.
-                      Each account you connect will use your personal credentials for posting.
-                    </p>
-                  </CardContent>
-                </Card>
+                {!hasConnectedAccounts && (
+                  <Card className="glass border-border/20 mb-6">
+                    <CardContent className="p-6">
+                      <h3 className="text-lg font-semibold mb-2">Connect Your Social Accounts</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Connect your own social media accounts to post content and track analytics.
+                        Each account you connect will use your personal credentials for posting.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    {hasConnectedAccounts ? "Connected Accounts" : "Accounts"}
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!hasConnectedAccounts}
+                    onClick={async () => {
+                      if (!hasConnectedAccounts) return;
+                      setActiveSyncPlatform("all");
+                      toast({
+                        title: "Syncing all accounts",
+                        description: "Fetching latest analytics from connected platforms.",
+                      });
+                      const failures: string[] = [];
+                      let firstFailureDetail: string | null = null;
+                      for (const account of connectedAccounts) {
+                        try {
+                          await syncAnalytics(account.platform.toLowerCase());
+                        } catch (err: any) {
+                          failures.push(account.platform);
+                          if (!firstFailureDetail) {
+                            const rateDetail = formatRateLimitDetail(err);
+                            firstFailureDetail = rateDetail
+                              ? `${err?.message || "Sync failed."} (${rateDetail})`
+                              : (err?.message || "Sync failed.");
+                          }
+                        }
+                      }
+                      if (failures.length > 0) {
+                        toast({
+                          title: "Some syncs failed",
+                          description: `${`Failed: ${failures.join(", ")}`}${firstFailureDetail ? ` — ${firstFailureDetail}` : ""}`,
+                          variant: "destructive",
+                        });
+                      } else {
+                        toast({
+                          title: "Sync complete",
+                          description: "All connected accounts are up to date.",
+                        });
+                      }
+                      setActiveSyncPlatform(null);
+                    }}
+                  >
+                    Sync All
+                  </Button>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {socialAccounts.map((account, index) => (
@@ -301,9 +473,29 @@ const Dashboard = () => {
                       key={index}
                       {...account}
                       activeConnectPlatform={activeConnectPlatform}
-                      onConnectStart={() => setActiveConnectPlatform(account.platform)}
+                      activeSyncPlatform={activeSyncPlatform}
+                      onConnectStart={() => setActiveConnectPlatform(account.platformKey)}
                       onConnectEnd={() => setActiveConnectPlatform(null)}
-                      onSync={() => syncAnalytics(account.platform.toLowerCase())}
+                      onSync={async () => {
+                        setActiveSyncPlatform(account.platformKey);
+                        try {
+                          await syncAnalytics(account.platformKey);
+                          toast({
+                            title: "Sync Complete",
+                            description: `${account.platform} data synced successfully.`,
+                          });
+                        } catch (err: any) {
+                          const rateDetail = formatRateLimitDetail(err);
+                          toast({
+                            title: "Sync failed",
+                            description: rateDetail ? `${err?.message || "Sync failed."} (${rateDetail})` : (err?.message || "Sync failed."),
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setActiveSyncPlatform(null);
+                        }
+                      }}
+                      onDisconnect={refetch}
                     />
                   ))}
                 </div>

@@ -13,6 +13,7 @@ interface MetricCardProps {
 
 export const MetricCard = ({ title, value, growth, icon: Icon, gradient }: MetricCardProps) => {
   const isPositive = growth > 0;
+  const isNeutral = growth === 0;
   
   return (
     <Card className="glass border-border/20 hover-glow card-interactive relative overflow-hidden">
@@ -22,11 +23,13 @@ export const MetricCard = ({ title, value, growth, icon: Icon, gradient }: Metri
           <div className={`p-3 rounded-xl ${gradient}`}>
             <Icon className="h-6 w-6 text-white" />
           </div>
-          <Badge 
-            variant={isPositive ? "default" : "destructive"}
+          <Badge
+            variant={isNeutral ? "secondary" : isPositive ? "default" : "destructive"}
             className="flex items-center space-x-1"
           >
-            {isPositive ? (
+            {isNeutral ? (
+              <span className="text-base leading-none">—</span>
+            ) : isPositive ? (
               <TrendingUp className="h-3 w-3" />
             ) : (
               <TrendingDown className="h-3 w-3" />

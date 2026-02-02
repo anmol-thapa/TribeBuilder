@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import Joi from 'joi';
 import pool from '../Config/connection';
+import authenticateToken from '../middleware/authenticateToken';
 
 const router = Router();
 
@@ -254,31 +255,5 @@ router.get('/profile', authenticateToken, async (req: Request, res: Response): P
     });
   }
 });
-
-/* ---------------------------------------------------
-   🔹 JWT Authentication Middleware
---------------------------------------------------- */
-function authenticateToken(req: Request, res: Response, next: any): void {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-  if (!token) {
-    res.status(401).json({ error: 'Access token required' });
-    return;
-  }
-
-  jwt.verify(
-    token,
-    process.env.JWT_SECRET || 'fallback-secret',
-    (err: any, user: any) => {
-      if (err) {
-        res.status(403).json({ error: 'Invalid or expired token' });
-        return;
-      }
-      (req as any).user = user;
-      next();
-    }
-  );
-}
 
 export default router;

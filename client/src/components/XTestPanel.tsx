@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useXPost } from '@/hooks/useXPost';
-import { Twitter, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { X as XIcon, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function XTestPanel() {
@@ -68,7 +68,7 @@ export function XTestPanel() {
     <Card className="glass border-border/20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Twitter className="h-5 w-5" />
+          <XIcon className="h-5 w-5" />
           X API Test Panel
         </CardTitle>
         <CardDescription>
@@ -99,7 +99,7 @@ export function XTestPanel() {
             {testing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <Twitter className="h-4 w-4 mr-2" />
+              <XIcon className="h-4 w-4 mr-2" />
             )}
             Post Test Tweet
           </Button>

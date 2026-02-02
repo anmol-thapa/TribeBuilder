@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { RealtimeProvider } from "./contexts/RealtimeContext";
 import Navigation from "./components/Navigation";
@@ -20,6 +20,20 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const XOAuthRedirector = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Ensure X OAuth callbacks land on the social dashboard
+  if (location.search.includes("x_connected=") || location.search.includes("x_auth=")) {
+    if (location.pathname !== "/social") {
+      navigate(`/social${location.search}`, { replace: true });
+    }
+  }
+
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -28,6 +42,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <XOAuthRedirector />
             <div className="min-h-screen bg-background">
               <Navigation />
               <Routes>

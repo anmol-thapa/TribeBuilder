@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useXPost } from '@/hooks/useXPost';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
-import { Twitter, ImageIcon, X } from 'lucide-react';
+import { X as XIcon, ImageIcon, X } from 'lucide-react';
 import { XConnectButton } from './XConnectButton';
 import { toast } from 'sonner';
 
@@ -52,7 +52,7 @@ export function XPostCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Twitter className="h-5 w-5" />
+          <XIcon className="h-5 w-5" />
           Post to X
         </CardTitle>
         <CardDescription>

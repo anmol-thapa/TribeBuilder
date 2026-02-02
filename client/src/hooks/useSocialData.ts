@@ -33,6 +33,7 @@ export const useSocialData = () => {
   const [analytics, setAnalytics] = useState<Record<string, SocialAnalytics[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analyticsDays, setAnalyticsDays] = useState(30);
 
   const fetchConnections = async () => {
     try {
@@ -83,11 +84,33 @@ export const useSocialData = () => {
 
   const syncAnalytics = async (platform: string) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated with Supabase');
+      }
+
       const { data, error } = await supabase.functions.invoke('sync-social-analytics', {
         body: { platform },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
-      if (error) throw error;
+      if (error) {
+        const body = (error as any)?.context?.body;
+        let rateLimit: any = null;
+        if (body) {
+          try {
+            const parsed = typeof body === 'string' ? JSON.parse(body) : body;
+            rateLimit = parsed?.rateLimit || null;
+          } catch {
+            rateLimit = null;
+          }
+        }
+        const err: any = new Error(error.message || 'Failed to sync analytics');
+        err.rateLimit = rateLimit;
+        throw err;
+      }
       
       // Refresh connections and analytics after sync
       await fetchConnections();
@@ -169,7 +192,7 @@ export const useSocialData = () => {
       const analyticsData: Record<string, SocialAnalytics[]> = {};
       
       for (const connection of connections) {
-        const data = await fetchAnalytics(connection.id);
+        const data = await fetchAnalytics(connection.id, analyticsDays);
         analyticsData[connection.id] = data;
       }
       
@@ -179,7 +202,7 @@ export const useSocialData = () => {
     if (connections.length > 0) {
       loadAnalytics();
     }
-  }, [connections]);
+  }, [connections, analyticsDays]);
 
   return {
     connections,
@@ -189,5 +212,6 @@ export const useSocialData = () => {
     syncAnalytics,
     disconnectPlatform,
     refetch: fetchConnections,
+    setAnalyticsDays,
   };
 };

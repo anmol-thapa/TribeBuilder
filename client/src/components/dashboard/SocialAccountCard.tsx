@@ -3,20 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Instagram,
-  Twitter,
+  X as XIcon,
   Facebook,
-  Linkedin,
   Youtube,
   MessageCircle,
   Video,
   Plus,
   Settings,
-  TrendingUp,
   CheckCircle2,
   Shield,
   Unlink,
   Loader2,
+  HelpCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useXConnection } from "@/hooks/useXConnection";
@@ -28,40 +33,61 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface SocialAccountCardProps {
   platform: string;
+  platformKey: string;
   username: string;
   followers: number;
+  engagement: number;
+  reach: number;
   connected: boolean;
   color: string;
   connectionId?: string;
+  profileData?: any;
   onSync?: () => void;
+  onDisconnect?: () => void;
   activeConnectPlatform: string | null;
+  activeSyncPlatform: string | null;
   onConnectStart: () => void;
   onConnectEnd: () => void;
 }
 
 const platformIcons = {
-  Instagram,
-  Twitter,
-  Facebook,
-  LinkedIn: Linkedin,
-  YouTube: Youtube,
-  Reddit: MessageCircle,
-  TikTok: Video,
+  instagram: Instagram,
+  twitter: XIcon,
+  facebook: Facebook,
+  youtube: Youtube,
+  reddit: MessageCircle,
+  tiktok: Video,
+};
+
+const platformBrandColors: Record<string, string> = {
+  instagram: "#E1306C",
+  twitter: "#000000",
+  facebook: "#1877F2",
+  youtube: "#FF0000",
+  reddit: "#FF4500",
+  tiktok: "#111111",
 };
 
 export const SocialAccountCard = ({
   platform,
+  platformKey,
   username,
   followers,
+  engagement,
+  reach,
   connected,
   color,
   connectionId,
+  profileData,
   onSync,
+  onDisconnect,
   activeConnectPlatform,
+  activeSyncPlatform,
   onConnectStart,
   onConnectEnd,
 }: SocialAccountCardProps) => {
-  const Icon = platformIcons[platform as keyof typeof platformIcons];
+  const Icon = platformIcons[platformKey as keyof typeof platformIcons];
+  const brandColor = platformBrandColors[platformKey] ?? "rgb(143, 115, 86)";
   const { toast } = useToast();
   const { connectX, disconnectX, isConnecting, isDisconnecting } = useXConnection();
   const { connectFacebook, disconnectFacebook, isConnecting: isFbConnecting, isDisconnecting: isFbDisconnecting } = useFacebookConnection();
@@ -75,10 +101,6 @@ export const SocialAccountCard = ({
     setIsSyncing(true);
     try {
       await onSync();
-      toast({
-        title: "Sync Complete",
-        description: `Successfully synced ${platform} analytics data!`,
-      });
     } catch (error: any) {
       console.error('Sync error:', error);
       toast({
@@ -91,10 +113,10 @@ export const SocialAccountCard = ({
     }
   };
 
-  
+
   const handleConnect = async () => {
     const anotherInProgress =
-      activeConnectPlatform !== null && activeConnectPlatform !== platform;
+      activeConnectPlatform !== null && activeConnectPlatform !== platformKey;
     if (anotherInProgress) {
       toast({
         title: "Please wait",
@@ -107,7 +129,7 @@ export const SocialAccountCard = ({
     onConnectStart();
 
     // X/Twitter (redirect flow)
-    if (platform === "Twitter") {
+    if (platformKey === "twitter") {
       toast({
         title: "Connecting Your X Account",
         description: "You'll be redirected to X. Make sure to log in with YOUR X account.",
@@ -118,12 +140,23 @@ export const SocialAccountCard = ({
     }
 
     // YouTube (redirect flow)
-    if (platform === "YouTube") {
+    if (platformKey === "youtube") {
       const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "VITE_GOOGLE_CLIENT_ID";
+      const googleClientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || "";
+      const youtubeApiKey = import.meta.env.VITE_YOUTUBE_API_KEY || "";
       if (!googleClientId || googleClientId === "VITE_GOOGLE_CLIENT_ID") {
         toast({
           title: "YouTube not configured",
           description: "Set VITE_GOOGLE_CLIENT_ID to enable YouTube OAuth.",
+          variant: "destructive",
+        });
+        onConnectEnd();
+        return;
+      }
+      if (!googleClientSecret || !youtubeApiKey) {
+        toast({
+          title: "YouTube not fully configured",
+          description: "Set VITE_GOOGLE_CLIENT_SECRET and VITE_YOUTUBE_API_KEY.",
           variant: "destructive",
         });
         onConnectEnd();
@@ -139,12 +172,57 @@ export const SocialAccountCard = ({
         onConnectEnd();
         return;
       }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        toast({
+          title: "Please log in",
+          description: "You need to be logged in to connect YouTube.",
+          variant: "destructive",
+        });
+        onConnectEnd();
+        return;
+      }
       toast({
         title: "Connecting YouTube",
         description: "You'll be redirected to Google to authorize YouTube access.",
         duration: 3000,
       });
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${supabaseUrl}/functions/v1/social-auth&response_type=code&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/youtube.upload&access_type=offline&state=youtube&prompt=consent`;
+      const oauthState = `youtube_${session.user.id}`;
+      const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+      authUrl.searchParams.set("client_id", googleClientId);
+      authUrl.searchParams.set("redirect_uri", `${supabaseUrl}/functions/v1/social-auth`);
+      authUrl.searchParams.set("response_type", "code");
+      authUrl.searchParams.set(
+        "scope",
+        "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload"
+      );
+      authUrl.searchParams.set("access_type", "offline");
+      authUrl.searchParams.set("state", oauthState);
+      authUrl.searchParams.set("prompt", "consent");
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      const popup = window.open(
+        authUrl.toString(),
+        "YouTube OAuth",
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+      if (!popup) {
+        toast({
+          title: "Popup blocked",
+          description: "Please allow popups to connect YouTube.",
+          variant: "destructive",
+        });
+        onConnectEnd();
+        return;
+      }
+      const checkPopup = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkPopup);
+          onConnectEnd();
+        }
+      }, 1000);
       return;
     }
 
@@ -221,47 +299,50 @@ export const SocialAccountCard = ({
 
 
   const handleDisconnect = async () => {
-    if (!connectionId && platform !== "Twitter") return;
+    if (!connectionId && platformKey !== "twitter") return;
 
     const confirmed = window.confirm(`Are you sure you want to disconnect your ${platform} account?`);
 
     if (!confirmed) return;
 
-    if (platform === "Twitter") {
-      await disconnectX();
-    } else if (platform === "Facebook" && connectionId) {
-      await disconnectFacebook(connectionId);
-    } else if (platform === "TikTok") {
-      await disconnectTikTok();
-    } else if ((platform === "Reddit" || platform === "Instagram") && connectionId) {
-      // For Reddit and Instagram, use direct Supabase update
-      try {
-        const { error } = await supabase
-          .from('social_connections')
-          .update({ is_active: false })
-          .eq('id', connectionId);
+    const clearTokens = async (id: string) => {
+      const { error } = await supabase
+        .from('social_connections')
+        .update({
+          is_active: false,
+          access_token: "",
+          refresh_token: null,
+          token_expires_at: null,
+        })
+        .eq('id', id);
 
-        if (error) throw error;
+      if (error) throw error;
+    };
 
-        toast({
-          title: "Disconnected",
-          description: `Your ${platform} account has been disconnected.`,
-        });
-
-        // Reload to refresh connections
-        window.location.reload();
-      } catch (error: any) {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to disconnect account.",
-          variant: "destructive",
-        });
+    try {
+      if (platformKey === "twitter") {
+        await disconnectX();
+      } else if (platform === "Facebook" && connectionId) {
+        await disconnectFacebook(connectionId);
+        await clearTokens(connectionId);
+      } else if (platform === "TikTok") {
+        await disconnectTikTok();
       }
-    } else {
-      // For other platforms
+
+      if (connectionId) {
+        await clearTokens(connectionId);
+      }
+
       toast({
-        title: "Disconnect feature",
-        description: `${platform} disconnect is coming soon!`,
+        title: "Disconnected",
+        description: `Your ${platform} account has been disconnected.`,
+      });
+      await onDisconnect?.();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disconnect account.",
+        variant: "destructive",
       });
     }
   };
@@ -273,8 +354,8 @@ export const SocialAccountCard = ({
     >
       {connected && (
         <div
-          className={`absolute inset-0 opacity-5 ${color === "instagram" ? "gradient-instagram" : `bg-social-${color}`
-            }`}
+          className="absolute inset-0 opacity-5"
+          style={{ backgroundColor: brandColor }}
         ></div>
       )}
 
@@ -283,15 +364,23 @@ export const SocialAccountCard = ({
           <div className="flex items-center space-x-3">
             <div
               className={`p-2 rounded-lg ${connected
-                  ? color === "instagram"
-                    ? "gradient-instagram"
-                    : "bg-social-" + color
-                  : "bg-[rgb(143,115,86)]/10 border border-[rgb(143,115,86)]/40"
+                ? ""
+                : "bg-[rgb(143,115,86)]/10 border border-[rgb(143,115,86)]/40"
                 }`}
+              style={
+                connected
+                  ? { backgroundColor: brandColor }
+                  : undefined
+              }
             >
               <Icon
                 className="h-5 w-5"
-                style={{ color: connected ? "#ffffff" : "rgb(143, 115, 86)" }}
+                style={{
+                  color:
+                    connected
+                      ? "#ffffff"
+                      : "rgb(143, 115, 86)",
+                }}
               />
             </div>
             <div>
@@ -308,7 +397,6 @@ export const SocialAccountCard = ({
                 <Shield className="h-3 w-3 mr-1" />
                 Connected
               </Badge>
-              <span className="text-xs text-muted-foreground">Your account</span>
             </div>
           ) : (
             <Badge variant="secondary">Not Connected</Badge>
@@ -319,14 +407,38 @@ export const SocialAccountCard = ({
       <CardContent className="relative">
         {connected ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <p className="text-2xl font-bold text-foreground">{followers.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Followers</p>
+                <div className="flex items-center gap-2">
+                  {platform === "Reddit" ? (
+                    <span className="text-lg font-semibold text-muted-foreground">—</span>
+                  ) : (
+                    <p className="text-lg font-semibold text-foreground">{followers.toLocaleString()}</p>
+                  )}
+                  {platform === "Reddit" && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-muted-foreground">
+                            <HelpCircle className="h-4 w-4" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Reddit does not provide follower counts via API.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Followers</p>
               </div>
-              <div className="flex items-center space-x-1 text-green-500">
-                <TrendingUp className="h-4 w-4" />
-                <span className="text-sm font-medium">+12%</span>
+              <div>
+                <p className="text-lg font-semibold text-foreground">{engagement.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Engagement</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-foreground">{reach.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Reach</p>
               </div>
             </div>
 
@@ -336,7 +448,7 @@ export const SocialAccountCard = ({
                 size="sm"
                 className="flex-1"
                 onClick={handleSync}
-                disabled={isSyncing}
+                disabled={isSyncing || (!!activeSyncPlatform && activeSyncPlatform !== platformKey)}
               >
                 {isSyncing ? (
                   <>

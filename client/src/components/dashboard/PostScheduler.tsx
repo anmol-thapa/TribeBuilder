@@ -19,9 +19,8 @@ import {
   Image, 
   Send, 
   Instagram, 
-  Twitter, 
+  X as XIcon, 
   Facebook,
-  Linkedin,
   Eye,
   Edit2,
   Trash2,
@@ -53,15 +52,13 @@ export const PostScheduler = () => {
     instagram: { text: false, video: true }, // Instagram only supports reels/videos
     twitter: { text: true, video: true },
     facebook: { text: true, video: true },
-    linkedin: { text: true, video: true },
     reddit: { text: true, video: false },
   };
 
   const allPlatforms = [
     { id: "instagram", name: "Instagram", icon: Instagram, color: "gradient-instagram" },
-    { id: "twitter", name: "Twitter", icon: Twitter, color: "bg-social-twitter" },
+    { id: "twitter", name: "X", icon: XIcon, color: "bg-social-twitter" },
     { id: "facebook", name: "Facebook", icon: Facebook, color: "bg-social-facebook" },
-    { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-social-linkedin" },
     { id: "reddit", name: "Reddit", icon: SiReddit, color: "bg-social-reddit" },
   ];
 
@@ -184,7 +181,7 @@ export const PostScheduler = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 {contentType === 'text' 
-                  ? 'Text posts are supported on Twitter, Facebook, and LinkedIn' 
+                  ? 'Text posts are supported on X and Facebook' 
                   : 'Video content is supported on all platforms (Instagram only supports videos)'}
               </p>
             </div>
@@ -421,7 +418,7 @@ export const PostScheduler = () => {
                     }
                     
                     // Other platforms can be added here in the future
-                    if (selectedPlatforms.some(p => ['facebook', 'linkedin', 'instagram'].includes(p))) {
+                    if (selectedPlatforms.some(p => ['facebook', 'instagram'].includes(p))) {
                       // Show coming soon message for other platforms
                       const otherPlatforms = selectedPlatforms.filter(p => !['twitter', 'reddit'].includes(p));
                       if (otherPlatforms.length > 0) {

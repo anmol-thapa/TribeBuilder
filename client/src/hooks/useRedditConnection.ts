@@ -46,7 +46,6 @@ export const useRedditConnection = () => {
           toast.success('Reddit connected successfully!');
           window.removeEventListener('message', handleMessage);
           setIsConnecting(false);
-          window.location.reload();
         } else if (event.data.type === 'reddit-auth-error') {
           toast.error(event.data.error || 'Failed to connect Reddit');
           window.removeEventListener('message', handleMessage);

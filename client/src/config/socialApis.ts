@@ -31,15 +31,6 @@ export const socialApiConfig = {
     scopes: ["pages_show_list", "pages_read_engagement", "pages_manage_posts"],
   },
 
-  // LinkedIn API
-  // Set up at https://www.linkedin.com/developers/
-  linkedin: {
-    authUrl: `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${
-      import.meta.env.VITE_LINKEDIN_CLIENT_ID || "YOUR_LINKEDIN_CLIENT_ID"
-    }&redirect_uri=${SUPABASE_FUNCTION_URL}/social-auth&scope=r_liteprofile%20r_emailaddress%20w_member_social&state=linkedin`,
-    scopes: ["r_liteprofile", "r_emailaddress", "w_member_social"],
-  },
-
   // YouTube Data API (Google OAuth)
   // Set up at https://console.cloud.google.com/
   youtube: {

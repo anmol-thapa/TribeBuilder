@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Heart, MessageSquare, Share2, Eye, Users, TrendingUp, ArrowUp, ArrowDown } from "lucide-react";
+import { Heart, MessageSquare, MessageCircle, Share2, Eye, Users, TrendingUp, ArrowUp, ArrowDown, Instagram, Facebook, Youtube, X as XIcon, Video } from "lucide-react";
 import { useSocialPosts } from "@/hooks/useSocialPosts";
 import { useSocialData } from "@/hooks/useSocialData";
 import { formatDistanceToNow } from "date-fns";
@@ -38,14 +38,38 @@ export const PostAnalytics = ({ connectionId }: PostAnalyticsProps) => {
     );
   }
 
-  const getPlatformColor = (connectionId: string) => {
-    const connection = connections.find(c => c.id === connectionId);
-    return connection?.platform.toLowerCase() || 'primary';
-  };
-
   const getPlatformName = (connectionId: string) => {
     const connection = connections.find(c => c.id === connectionId);
-    return connection?.platform || 'Unknown';
+    if (!connection?.platform) return 'Unknown';
+    return connection.platform.toLowerCase() === 'twitter' ? 'X' : connection.platform;
+  };
+
+  const getPlatformIcon = (connectionId: string) => {
+    const connection = connections.find(c => c.id === connectionId);
+    const key = connection?.platform?.toLowerCase() || '';
+    const icons: Record<string, any> = {
+      instagram: Instagram,
+      facebook: Facebook,
+      youtube: Youtube,
+      reddit: MessageCircle,
+      twitter: XIcon,
+      tiktok: Video,
+    };
+    return icons[key] || MessageSquare;
+  };
+
+  const getPlatformColor = (connectionId: string) => {
+    const connection = connections.find(c => c.id === connectionId);
+    const key = connection?.platform?.toLowerCase() || '';
+    const colors: Record<string, string> = {
+      instagram: "#E1306C",
+      facebook: "#1877F2",
+      youtube: "#FF0000",
+      reddit: "#FF4500",
+      twitter: "#1DA1F2",
+      tiktok: "#111111",
+    };
+    return colors[key] || "#8F7356";
   };
 
   return (
@@ -62,6 +86,7 @@ export const PostAnalytics = ({ connectionId }: PostAnalyticsProps) => {
             {posts.map((post: any, index: number) => {
               const platform = getPlatformName(post.connection_id);
               const platformColor = getPlatformColor(post.connection_id);
+              const PlatformIcon = getPlatformIcon(post.connection_id);
               const followerGrowth = post.followers_at_post - (posts[index + 1]?.followers_at_post || post.followers_at_post);
               
               return (
@@ -70,9 +95,18 @@ export const PostAnalytics = ({ connectionId }: PostAnalyticsProps) => {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <Badge className={`gradient-${platformColor}`}>
-                            {platform}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full"
+                              style={{
+                                backgroundColor:
+                                  platform.toLowerCase() === "x" ? "#000000" : platformColor,
+                              }}
+                            >
+                              <PlatformIcon className="h-4 w-4" style={{ color: "#ffffff" }} />
+                            </span>
+                            <span className="text-sm font-medium">{platform}</span>
+                          </div>
                           <span className="text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(post.posted_at), { addSuffix: true })}
                           </span>

@@ -67,7 +67,7 @@ const Login = () => {
     try {
       await login(values.email, values.password);
       toast.success('Login successful!', {
-        description: 'Welcome back to TribeBuilders.',
+        description: 'Welcome back to TribeBuilder.',
       });
       navigate(from, { replace: true });
     } catch (error: any) {
@@ -99,7 +99,7 @@ const Login = () => {
           <div className="bg-gradient-primary p-3 rounded-full w-16 h-16 mx-auto mb-4 shadow-glow">
             <Music className="h-10 w-10 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">TribeBuilders</h1>
+          <h1 className="text-3xl font-bold mb-2">TribeBuilder</h1>
         </div>
 
         <Card className="bg-gradient-card shadow-creative border-border/50">

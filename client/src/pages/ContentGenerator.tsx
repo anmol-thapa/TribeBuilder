@@ -12,7 +12,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Sparkles, Copy, Check, Twitter, Youtube } from 'lucide-react';
+import { Sparkles, Copy, Check, X as XIcon, Youtube } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useSocialData } from '@/hooks/useSocialData';
+import { useRedditPost } from '@/hooks/useRedditPost';
+import { useXPost } from '@/hooks/useXPost';
 
 const RedditIcon = ({ className }: { className?: string }) => (
   <svg 
@@ -28,12 +32,17 @@ const RedditIcon = ({ className }: { className?: string }) => (
 const formSchema = z.object({
   content_type: z.enum(['announcement', 'release', 'news', 'social_post', 'story']),
   context: z.string().min(5, 'Context must be at least 5 characters').max(500),
-  max_length: z.number().min(50).max(500).optional(),
+  max_length: z.number().min(100).max(280).optional(),
   variations: z.number().min(1).max(5).optional(),
   provider: z.enum(['groq', 'openai', 'huggingface', 'auto']).optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+type GeneratedContentWithParts = GeneratedContent & {
+  title?: string;
+  body?: string;
+};
 
 const MAX_CONTEXT_LENGTH = 500;
 const clampNumber = (value: number | undefined, min: number, max: number) => {
@@ -65,11 +74,41 @@ const enforceSentenceFriendlyLimit = (text: string, charLimit: number) => {
   return trimmed.slice(0, charLimit).trim();
 };
 
+const stripWrappingQuotes = (value: string) => value.replace(/^[\"“”]+|[\"“”]+$/g, '').trim();
+
+const splitTitleBody = (text: string) => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { title: 'New post from TribeBuilder', body: '' };
+  }
+  const match = trimmed.match(/TITLE:\s*([\s\S]*?)\s*BODY:\s*([\s\S]*)/i);
+  if (match) {
+    const title = stripWrappingQuotes(match[1].trim()).slice(0, 300);
+    const body = stripWrappingQuotes(match[2].trim());
+    return {
+      title: title || 'New post from TribeBuilder',
+      body,
+    };
+  }
+  const firstLine = trimmed.split('\n').find((line) => line.trim().length > 0) || trimmed;
+  const title = stripWrappingQuotes(firstLine.replace(/\s+/g, ' ').trim()).slice(0, 300);
+  const body = stripWrappingQuotes(
+    trimmed.startsWith(firstLine) ? trimmed.slice(firstLine.length).trim() : trimmed
+  );
+  return {
+    title: title || 'New post from TribeBuilder',
+    body,
+  };
+};
+
 const ContentGenerator = () => {
-  const [generatedContent, setGeneratedContent] = useState<GeneratedContent[]>([]);
+  const [generatedContent, setGeneratedContent] = useState<GeneratedContentWithParts[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { subscribeToChannel, unsubscribeFromChannel, isConnected } = useRealtime();
+  const { connections } = useSocialData();
+  const { postToReddit: postToRedditEdge, isPosting: isPostingReddit } = useRedditPost();
+  const { postTweet, isPosting: isPostingX } = useXPost();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -101,7 +140,7 @@ const ContentGenerator = () => {
 
     try {
       const trimmedContext = values.context.trim().slice(0, MAX_CONTEXT_LENGTH);
-      const safeCharLimit = clampNumber(values.max_length, 50, 500);
+      const safeCharLimit = clampNumber(values.max_length, 100, 280);
       const safeVariations = clampNumber(values.variations, 1, 5);
 
       const response = await apiClient.generateContent({
@@ -116,6 +155,7 @@ const ContentGenerator = () => {
         response.generated_content.map((item) => ({
           ...item,
           content: enforceSentenceFriendlyLimit(item.content, safeCharLimit),
+          ...splitTitleBody(item.content),
         }))
       );
 
@@ -138,31 +178,80 @@ const ContentGenerator = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const postToX = (content: string) => {
-    const tweetText = encodeURIComponent(content);
-    window.open(`https://twitter.com/intent/tweet?text=${tweetText}`, '_blank');
+  const postToX = async (content: string) => {
+    const xConnection = connections.find((c) => c.platform === 'twitter' && c.is_active);
+    if (!xConnection) {
+      toast.error('X not connected', {
+        description: 'Connect your X account before posting.',
+      });
+      return;
+    }
+
+    const loadingId = toast.loading('Posting to X...');
+    const result = await postTweet(content);
+    const tweetUrl = result?.tweetUrl || result?.data?.tweetUrl;
+    if (!tweetUrl) {
+      toast.error('X post failed', {
+        id: loadingId,
+        description: 'Please try again or reconnect X.',
+      });
+      return;
+    }
+
+    toast.success('Posted to X', {
+      id: loadingId,
+      description: (
+        <a
+          href={tweetUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          View post
+        </a>
+      ),
+    });
   };
 
-  const postToReddit = async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      toast.success('Copied for Reddit', {
-        description: 'Text copied to clipboard. Paste it into your Reddit post.',
+  const postToReddit = async (content: string, title?: string) => {
+    const redditConnection = connections.find((c) => c.platform === 'reddit' && c.is_active);
+    if (!redditConnection) {
+      toast.error('Reddit not connected', {
+        description: 'Connect your Reddit account before posting.',
       });
-    } catch (error) {
-      toast.error('Could not copy to clipboard', {
-        description: 'Please copy manually before posting to Reddit.',
-      });
+      return;
     }
 
-    const redditUrl = 'https://www.reddit.com/submit?selftext=true';
-    const opened = window.open(redditUrl, '_blank');
-    if (!opened) {
-      window.open('https://www.reddit.com', '_blank');
+    const fallbackTitle = title || splitTitleBody(content).title;
+    const safeTitle = fallbackTitle.slice(0, 300);
+
+    const loadingId = toast.loading('Posting to Reddit...');
+    const result = await postToRedditEdge(content, safeTitle, redditConnection.id);
+    if (!result?.postUrl) {
+      toast.error('Reddit post failed', {
+        id: loadingId,
+        description: 'Please try again or reconnect Reddit.',
+      });
+      return;
     }
+
+    toast.success('Posted to Reddit', {
+      id: loadingId,
+      description: (
+        <a
+          href={result.postUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          View post
+        </a>
+      ),
+    });
   };
 
   const openYouTubeUpload = async (content: string, id?: string) => {
+    const loadingId = toast.loading('Opening YouTube upload...');
     try {
       await navigator.clipboard.writeText(content);
       if (id) {
@@ -170,20 +259,30 @@ const ContentGenerator = () => {
         setTimeout(() => setCopiedId(null), 2000);
       }
       toast.success('Copied to clipboard', {
+        id: loadingId,
         description: 'Text ready to paste into your YouTube post/description.',
       });
     } catch (err) {
       toast.error('Could not copy to clipboard', {
+        id: loadingId,
         description: 'Please copy manually before uploading.',
       });
     }
 
-    // Open channel posts page directly
-    const postsUrl = 'https://www.youtube.com/channel/UCFwxGTgUB15JQ9fbRMjqJwQ/posts';
-    const fallbackUrl = 'https://studio.youtube.com';
-    const opened = window.open(postsUrl, '_blank');
-    if (!opened) {
-      window.open(fallbackUrl, '_blank');
+    try {
+      const response = await supabase.functions.invoke('youtube-upload', {
+        body: { content },
+      });
+      const studioUrl = response.data?.studioUrl || 'https://studio.youtube.com';
+      const opened = window.open(studioUrl, '_blank');
+      if (!opened) {
+        window.open('https://studio.youtube.com', '_blank');
+      }
+    } catch (error: any) {
+      toast.error('YouTube upload unavailable', {
+        id: loadingId,
+        description: error?.message || 'Please try again after connecting YouTube.',
+      });
     }
   };
 
@@ -312,10 +411,13 @@ const ContentGenerator = () => {
                           <FormControl>
                             <Input
                               type="number"
-                              min={50}
-                              max={500}
+                              min={100}
+                              max={280}
                               {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              onBlur={(e) => {
+                                const nextValue = clampNumber(parseInt(e.target.value), 100, 280);
+                                field.onChange(nextValue);
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -390,13 +492,22 @@ const ContentGenerator = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm leading-relaxed mb-4">{content.content}</p>
+                    <div className="space-y-2 mb-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Title</p>
+                        <p className="text-sm font-semibold">{content.title || splitTitleBody(content.content).title}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Body</p>
+                        <p className="text-sm leading-relaxed">{content.body || splitTitleBody(content.content).body}</p>
+                      </div>
+                    </div>
                   
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => copyToClipboard(content.content, content.id)}
+                      onClick={() => copyToClipboard(content.body || content.content, content.id)}
                       className="flex-1 min-w-[120px]"
                     >
                       {copiedId === content.id ? (
@@ -415,17 +526,17 @@ const ContentGenerator = () => {
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => postToX(content.content)}
+                      onClick={() => postToX(content.body || content.content)}
                       className="flex-1 min-w-[120px] bg-black text-white hover:bg-black/90"
                     >
-                      <Twitter className="h-4 w-4 mr-2" />
+                      <XIcon className="h-4 w-4 mr-2" />
                       Post to X
                     </Button>
 
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => postToReddit(content.content)}
+                      onClick={() => postToReddit(content.body || content.content, content.title)}
                       className="flex-1 min-w-[120px] bg-[#FF4500] text-white hover:bg-[#FF4500]/90"
                     >
                       <RedditIcon className="h-4 w-4 mr-2" />
@@ -435,7 +546,7 @@ const ContentGenerator = () => {
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => openYouTubeUpload(content.content, content.id)}
+                      onClick={() => openYouTubeUpload(content.body || content.content, content.id)}
                       className="flex-1 min-w-[150px] bg-[#FF0000] text-white hover:bg-[#e60000]"
                     >
                       <Youtube className="h-4 w-4 mr-2" />

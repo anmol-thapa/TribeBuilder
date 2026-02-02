@@ -31,10 +31,50 @@ export function useXConnection() {
       }
 
       if (data?.authUrl) {
-        console.log("Redirecting to X authorization page...");
-        // Redirect user to X authorization page
-        // User will authorize the app and be redirected back
-        window.location.href = data.authUrl;
+        console.log("Opening X authorization popup...");
+        const width = 600;
+        const height = 700;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+
+        const popup = window.open(
+          data.authUrl,
+          "X OAuth",
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+
+        if (!popup) {
+          throw new Error("Popup blocked. Please allow popups to connect X.");
+        }
+
+        const handleMessage = (event: MessageEvent) => {
+          if (event.data?.type === "twitter-auth-success") {
+            toast({
+              title: "X connected",
+              description: "Your X account is now connected.",
+            });
+            window.removeEventListener("message", handleMessage);
+            setIsConnecting(false);
+          } else if (event.data?.type === "twitter-auth-error") {
+            toast({
+              title: "X connection failed",
+              description: event.data?.error || "Failed to connect X.",
+              variant: "destructive",
+            });
+            window.removeEventListener("message", handleMessage);
+            setIsConnecting(false);
+          }
+        };
+
+        window.addEventListener("message", handleMessage);
+
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            window.removeEventListener("message", handleMessage);
+            setIsConnecting(false);
+          }
+        }, 1000);
       } else {
         console.error("No authUrl in response:", data);
         throw new Error("Failed to get authorization URL from server");
@@ -49,7 +89,7 @@ export function useXConnection() {
       setIsConnecting(false);
       return false;
     }
-    // Don't set isConnecting to false here - user is being redirected
+    // Don't set isConnecting to false here; popup flow will handle it.
   };
 
   const disconnectX = async () => {
@@ -81,11 +121,6 @@ export function useXConnection() {
         title: "X Account Disconnected",
         description: "Your X account has been successfully disconnected",
       });
-
-      // Refresh the page to update the UI
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
 
       return true;
     } catch (error: any) {

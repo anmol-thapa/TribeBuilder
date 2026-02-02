@@ -17,7 +17,7 @@ export function usePostToX() {
 
       toast({
         title: 'Posted to X!',
-        description: 'Your post has been published to X/Twitter',
+        description: 'Your post has been published to X',
       });
 
       return data;

@@ -1,0 +1,16 @@
+project_id = "itztzjoldjttugdnhajd"
+
+[functions.sync-social-analytics]
+verify_jwt = true
+
+[functions.reddit-oauth-callback]
+verify_jwt = false
+
+[functions.social-auth]
+verify_jwt = false
+
+[functions.x-oauth-callback]
+verify_jwt = false
+
+[functions.x-post-tweet]
+verify_jwt = true

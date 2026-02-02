@@ -12,7 +12,7 @@ import {
   AreaChart,
   Area
 } from "recharts";
-import { BarChart3, Twitter, Instagram, Facebook, Linkedin, Youtube } from "lucide-react";
+import { BarChart3, X as XIcon, Instagram, Facebook, Youtube } from "lucide-react";
 import { useState } from "react";
 
 interface AnalyticsChartProps {
@@ -21,6 +21,7 @@ interface AnalyticsChartProps {
   onTimeframeChange?: (value: string) => void;
   connectedAccounts?: Array<{
     platform: string;
+    platformKey?: string;
     username: string;
     followers: number;
     connected: boolean;
@@ -44,15 +45,14 @@ export const AnalyticsChart = ({ timeframe, onTimeframeChange, connectedAccounts
   const [selectedPlatform, setSelectedPlatform] = useState<string>("overview");
 
   // Get platform icon
-  const getPlatformIcon = (platform: string) => {
+  const getPlatformIcon = (platformKey: string) => {
     const icons: Record<string, any> = {
-      twitter: Twitter,
+      twitter: XIcon,
       instagram: Instagram,
       facebook: Facebook,
-      linkedin: Linkedin,
       youtube: Youtube,
     };
-    return icons[platform.toLowerCase()] || BarChart3;
+    return icons[platformKey.toLowerCase()] || BarChart3;
   };
 
   // Filter analytics based on selected platform
@@ -76,7 +76,7 @@ export const AnalyticsChart = ({ timeframe, onTimeframeChange, connectedAccounts
         ? Object.values(analytics).flat()
         : (() => {
           const connection = connectedAccounts.find(
-            acc => acc.platform.toLowerCase() === selectedPlatform.toLowerCase()
+            acc => (acc.platformKey || acc.platform).toLowerCase() === selectedPlatform.toLowerCase()
           );
           return connection && analytics[connection.connectionId!]
             ? analytics[connection.connectionId!]
@@ -89,10 +89,10 @@ export const AnalyticsChart = ({ timeframe, onTimeframeChange, connectedAccounts
   };
 
   // Process analytics data
-  const analyticsData = hasData && Object.keys(analytics).length > 0 ?
+    const analyticsData = hasData && Object.keys(analytics).length > 0 ?
     getFilteredAnalytics()
       .reduce((acc: any[], data) => {
-        const dateKey = new Date(data.date).toISOString().split('T')[0];
+        const dateKey = data.date;
         const existingDate = acc.find(item => item.dateKey === dateKey);
         if (existingDate) {
           existingDate.followers += data.followers_count;
@@ -102,7 +102,7 @@ export const AnalyticsChart = ({ timeframe, onTimeframeChange, connectedAccounts
         } else {
           acc.push({
             dateKey,
-            dateLabel: new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            dateLabel: new Date(`${data.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             followers: data.followers_count,
             likes: data.likes,
             engagement: data.likes + data.comments + data.shares,
@@ -111,7 +111,7 @@ export const AnalyticsChart = ({ timeframe, onTimeframeChange, connectedAccounts
         }
         return acc;
       }, [])
-      .sort((a, b) => new Date(a.dateKey).getTime() - new Date(b.dateKey).getTime())
+      .sort((a, b) => new Date(`${a.dateKey}T00:00:00`).getTime() - new Date(`${b.dateKey}T00:00:00`).getTime())
     : [];
 
   const timeframeButtons = [
@@ -134,11 +134,12 @@ export const AnalyticsChart = ({ timeframe, onTimeframeChange, connectedAccounts
               <SelectContent className="bg-card border-border z-50">
                 <SelectItem value="overview">Overview (All)</SelectItem>
                 {connectedAccounts.map((account) => {
-                  const Icon = getPlatformIcon(account.platform);
+                  const platformKey = account.platformKey || account.platform;
+                  const Icon = getPlatformIcon(platformKey);
                   return (
                     <SelectItem
                       key={account.platform}
-                      value={account.platform.toLowerCase()}
+                      value={platformKey.toLowerCase()}
                     >
                       <div className="flex items-center gap-2">
                         <Icon className="h-4 w-4" />

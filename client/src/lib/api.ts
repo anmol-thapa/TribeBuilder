@@ -136,7 +136,36 @@ export class ApiClient {
   }
 
   getToken(): string | null {
-    return this.token;
+    return this.token || this.loadSupabaseAccessToken();
+  }
+
+  // Fallback: use Supabase access token if API JWT is missing
+  private loadSupabaseAccessToken(): string | null {
+    if (typeof localStorage === 'undefined') return null;
+
+    const keys = Object.keys(localStorage).filter(
+      (k) => k.startsWith('sb-') && k.endsWith('-auth-token')
+    );
+
+    for (const key of keys) {
+      try {
+        const stored = localStorage.getItem(key);
+        if (!stored) continue;
+        const parsed = JSON.parse(stored);
+        const accessToken =
+          parsed?.access_token ||
+          parsed?.currentSession?.access_token ||
+          parsed?.currentSession?.provider_token;
+        if (accessToken) {
+          this.token = accessToken;
+          return accessToken;
+        }
+      } catch {
+        // ignore parsing errors and continue
+      }
+    }
+
+    return null;
   }
 
   private async request<T>(
@@ -154,9 +183,10 @@ export class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    // Add Authorization header if token exists
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const authToken = this.getToken();
+    // Add Authorization header if token exists (API JWT or Supabase access token)
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
     }
 
     const config: RequestInit = {

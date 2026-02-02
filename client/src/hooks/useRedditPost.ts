@@ -32,7 +32,6 @@ export const useRedditPost = () => {
 
       console.log('Reddit post response:', response.data);
 
-      toast.success('Posted to Reddit successfully!');
       return response.data;
     } catch (error) {
       console.error('Error posting to Reddit:', error);

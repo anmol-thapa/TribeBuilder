@@ -15,11 +15,6 @@ export function useXPost() {
 
       if (error) throw error;
 
-      toast({
-        title: 'Tweet posted successfully!',
-        description: 'Your tweet has been posted to X from your connected account.',
-      });
-
       return data;
     } catch (error: any) {
       console.error('Error posting tweet:', error);

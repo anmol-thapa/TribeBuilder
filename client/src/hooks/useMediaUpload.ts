@@ -8,7 +8,6 @@ export const PLATFORM_LIMITS = {
   facebook: { video: 1024, image: 8 },
   reddit: { video: 1024, image: 20 },
   instagram: { video: 4096, image: 8 },
-  linkedin: { video: 5120, image: 8 },
 };
 
 export const useMediaUpload = () => {

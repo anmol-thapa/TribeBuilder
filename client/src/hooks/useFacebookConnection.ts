@@ -138,9 +138,6 @@ export function useFacebookConnection() {
         title: 'Facebook Connected!',
         description: `Successfully connected as ${data.user?.name || 'Unknown'}`,
       });
-
-      // Reload to refresh connections
-      window.location.reload();
     } catch (error: any) {
       console.error('Error connecting Facebook:', error);
       toast({
@@ -167,8 +164,6 @@ export function useFacebookConnection() {
         title: 'Disconnected',
         description: 'Your Facebook account has been disconnected.',
       });
-
-      window.location.reload();
     } catch (error: any) {
       console.error('Error disconnecting Facebook:', error);
       toast({

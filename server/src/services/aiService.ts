@@ -78,6 +78,9 @@ export interface ContentQualityMetrics {
 }
 
 class AIContentService {
+  private static readonly MAX_BODY_LENGTH = 280;
+  private static readonly MAX_RETRY_ATTEMPTS = 5;
+
   private cacheKey(prefix: string, data: any): string {
     const hash = require('crypto')
       .createHash('md5')
@@ -124,20 +127,21 @@ class AIContentService {
       const userPrompt = this.buildUserPrompt(params.content_type, params.context);
 
       for (let i = 0; i < variations; i++) {
-        const response = await this.withRateLimit(async () => {
-          return await groq.chat.completions.create({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            max_tokens: params.max_length || 150,
-            temperature: 0.7 + (i * 0.1),
-            top_p: 0.9,
+        const content = await this.generateContentWithRetry(async () => {
+          const response = await this.withRateLimit(async () => {
+            return await groq.chat.completions.create({
+              model: 'llama-3.1-8b-instant',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+              max_tokens: params.max_length || 150,
+              temperature: 0.7 + (i * 0.1),
+              top_p: 0.9,
+            });
           });
+          return response.choices[0]?.message?.content?.trim() || '';
         });
-
-        const content = response.choices[0]?.message?.content?.trim();
 
         if (content) {
           const qualityScore = await this.scoreContentQuality(content, params.persona);
@@ -195,17 +199,18 @@ class AIContentService {
       const fullPrompt = `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`;
 
       for (let i = 0; i < variations; i++) {
-        const response = await this.withRateLimit(async () => {
-          return await cohere.generate({
-            model: 'command-r-plus',
-            prompt: fullPrompt,
-            maxTokens: params.max_length || 150,
-            temperature: 0.7 + (i * 0.1),
-            p: 0.9,
+        const content = await this.generateContentWithRetry(async () => {
+          const response = await this.withRateLimit(async () => {
+            return await cohere.generate({
+              model: 'command-r-plus',
+              prompt: fullPrompt,
+              maxTokens: params.max_length || 150,
+              temperature: 0.7 + (i * 0.1),
+              p: 0.9,
+            });
           });
+          return response.generations?.[0]?.text?.trim() || '';
         });
-
-        const content = response.generations?.[0]?.text?.trim();
 
         if (content) {
           const qualityScore = await this.scoreContentQuality(content, params.persona);
@@ -258,21 +263,22 @@ class AIContentService {
       const personaPrompt = this.buildPersonaPrompt(params.persona, params.content_type, params.context);
 
       for (let i = 0; i < variations; i++) {
-        const content = await this.withRateLimit(async () => {
-          // Use Hugging Face for text generation
-          const response = await hf.textGeneration({
-            model: process.env.AI_MODEL_TEXT_GENERATION || 'microsoft/DialoGPT-medium',
-            inputs: personaPrompt,
-            parameters: {
-              max_new_tokens: params.max_length || 150,
-              temperature: 0.7 + (i * 0.1), // Vary temperature for different outputs
-              top_p: 0.9,
-              repetition_penalty: 1.2,
-              return_full_text: false,
-            }
-          });
+        const content = await this.generateContentWithRetry(async () => {
+          return await this.withRateLimit(async () => {
+            const response = await hf.textGeneration({
+              model: process.env.AI_MODEL_TEXT_GENERATION || 'microsoft/DialoGPT-medium',
+              inputs: personaPrompt,
+              parameters: {
+                max_new_tokens: params.max_length || 150,
+                temperature: 0.7 + (i * 0.1),
+                top_p: 0.9,
+                repetition_penalty: 1.2,
+                return_full_text: false,
+              }
+            });
 
-          return response.generated_text?.trim() || '';
+            return response.generated_text?.trim() || '';
+          });
         });
 
         if (content) {
@@ -331,22 +337,23 @@ class AIContentService {
       const userPrompt = this.buildUserPrompt(params.content_type, params.context);
 
       for (let i = 0; i < variations; i++) {
-        const response = await this.withRateLimit(async () => {
-          return await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            max_tokens: params.max_length || 150,
-            temperature: 0.7 + (i * 0.1),
-            top_p: 0.9,
-            frequency_penalty: 0.2,
-            presence_penalty: 0.1,
+        const content = await this.generateContentWithRetry(async () => {
+          const response = await this.withRateLimit(async () => {
+            return await openai.chat.completions.create({
+              model: 'gpt-3.5-turbo',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+              max_tokens: params.max_length || 150,
+              temperature: 0.7 + (i * 0.1),
+              top_p: 0.9,
+              frequency_penalty: 0.2,
+              presence_penalty: 0.1,
+            });
           });
+          return response.choices[0]?.message?.content?.trim() || '';
         });
-
-        const content = response.choices[0]?.message?.content?.trim();
         
         if (content) {
           const qualityScore = await this.scoreContentQuality(content, params.persona);
@@ -486,7 +493,7 @@ class AIContentService {
       prompt += 'something that would interest your fans';
     }
     
-    prompt += '. Keep it authentic and engaging.';
+    prompt += '. Keep it authentic and engaging. The BODY must be 280 characters or fewer.';
     
     return prompt;
   }
@@ -506,27 +513,33 @@ Create content that:
 3. Incorporates their key themes naturally
 4. Is engaging and authentic
 5. Is appropriate for social media platforms
+6. Uses a BODY that is 280 characters or fewer
 
-Keep responses concise and impactful.`;
+Keep responses concise and impactful.
+
+Format every response exactly like this:
+TITLE: <short title>
+BODY: <post body>`;
   }
 
   // Build user prompt for OpenAI
   private buildUserPrompt(contentType: string, context?: string): string {
     const contextText = context || 'something that would interest and engage fans';
+    const formatInstruction = 'Return in the exact format: TITLE: <title>\\nBODY: <body>. BODY must be 280 characters or fewer.';
     
     switch (contentType) {
       case 'announcement':
-        return `Create an exciting announcement post about ${contextText}.`;
+        return `Create an exciting announcement post about ${contextText}. ${formatInstruction}`;
       case 'release':
-        return `Write a post announcing a new music release: ${contextText}.`;
+        return `Write a post announcing a new music release: ${contextText}. ${formatInstruction}`;
       case 'news':
-        return `Share news with fans about ${contextText}.`;
+        return `Share news with fans about ${contextText}. ${formatInstruction}`;
       case 'social_post':
-        return `Create a social media post about ${contextText}.`;
+        return `Create a social media post about ${contextText}. ${formatInstruction}`;
       case 'story':
-        return `Tell a brief, engaging story about ${contextText}.`;
+        return `Tell a brief, engaging story about ${contextText}. ${formatInstruction}`;
       default:
-        return `Create engaging content about ${contextText}.`;
+        return `Create engaging content about ${contextText}. ${formatInstruction}`;
     }
   }
 
@@ -628,6 +641,32 @@ Keep responses concise and impactful.`;
     }
     
     return Math.min(1, score);
+  }
+
+  private extractBody(content: string): string {
+    const match = content.match(/BODY:\s*([\s\S]*)$/i);
+    if (!match) {
+      return content.trim();
+    }
+    return (match[1] ?? '').trim();
+  }
+
+  private isBodyWithinLimit(content: string): boolean {
+    const body = this.extractBody(content);
+    return body.length <= AIContentService.MAX_BODY_LENGTH;
+  }
+
+  private async generateContentWithRetry(generator: () => Promise<string>): Promise<string> {
+    let attempt = 0;
+    let lastContent = '';
+    while (attempt < AIContentService.MAX_RETRY_ATTEMPTS) {
+      lastContent = await generator();
+      if (lastContent && this.isBodyWithinLimit(lastContent)) {
+        return lastContent;
+      }
+      attempt += 1;
+    }
+    return lastContent;
   }
 
   // Clear cache (useful for testing)

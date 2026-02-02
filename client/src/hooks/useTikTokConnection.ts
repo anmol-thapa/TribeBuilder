@@ -79,10 +79,6 @@ export function useTikTokConnection() {
         description: "Your TikTok account has been successfully disconnected",
       });
 
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-
       return true;
     } catch (error: any) {
       console.error("Error disconnecting TikTok:", error);
